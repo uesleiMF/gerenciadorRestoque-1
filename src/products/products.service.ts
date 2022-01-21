@@ -1,26 +1,103 @@
-import { Injectable } from '@nestjs/common';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
+import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
+import { CreateProductDto } from "./dto/create-product.dto";
+import { UpdateProductDto } from "./dto/update-product.dto";
+import { PrismaService } from "src/prisma.service";
 
 @Injectable()
 export class ProductsService {
-  create(createProductDto: CreateProductDto) {
-    return 'This action adds a new product';
+  constructor(private db: PrismaService) {}
+
+  async create(data: CreateProductDto) {
+    const productExists = await this.db.product.findUnique({
+      where: {
+        name: data.name,
+      },
+    });
+
+    if(productExists){
+      throw new ConflictException('Este produto já existe, tente cadastrar um novo produto!')
+    }
+
+    const product = await this.db.product.create({
+      data: {
+        ...data,
+      },
+    });
+
+    return product
   }
 
-  findAll() {
-    return `This action returns all products`;
+  async findAll() {
+    const products = await this.db.product.findMany();
+    return products
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} product`;
+  async findOne(id: string) {
+    const product = await this.db.product.findUnique({
+      where: {
+        id: id,
+      },
+    });
+
+    if (!product){
+      throw new NotFoundException('Produto não encontrado! Verifique os dados inseridos ou tente outro produto!')
+    }
+
+    return product 
   }
 
-  update(id: number, updateProductDto: UpdateProductDto) {
-    return `This action updates a #${id} product`;
+  async update(id: string, data: UpdateProductDto) {
+    const productExists = await this.db.product.findUnique({
+      where: {
+        id: id,
+      },
+    });
+
+    if (!productExists) {
+      throw new NotFoundException('Produto não encontrado! Verifique os dados inseridos ou tente outro produto!')
+    }
+
+    const product = await this.db.product.update({
+      where: {
+        id: id,
+      },
+      data: data,
+    });
+
+    return {data: product, message: 'Produto atualizado com sucesso!'}
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} product`;
+  async remove(id: string) {
+    const product = await this.db.product.findUnique({
+      where: {
+        id: id,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Produto não encontrado! Verifique os dados inseridos ou tente outro produto!')
+    }
+
+    await this.db.product.delete({
+      where: {
+        id: id,
+      },
+    });
+
+    return {message: 'Product Sucessfully deleted!'}
   }
+
+  async findPerNameOrId(name: string, id: string){
+      const product = await this.db.product.findFirst({
+        where: {
+          id,
+          OR: {
+            name,
+          },
+        },
+      });
+
+      return product;
+  }
+
 }
